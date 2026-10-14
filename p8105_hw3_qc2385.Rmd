@@ -1,0 +1,7 @@
+---
+title: "p8105_hw3_qc2385"
+author: "Qixuan Cao qc2385"
+date: "2026-10-14"
+output: github_document
+---
+
