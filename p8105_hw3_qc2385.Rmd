@@ -76,7 +76,7 @@ July is much warmer than January.
 Average max temperature is mostly between -10 and 10 C in January and between 20 and 33 C in July. Stations rise and fall together from year to year, so differences across years are mostly shared across stations. January varies more across years than July. There are a few outliers, such as one station around -13 C in January in the early 1980s and one station around 14 C in July in the late 1980s.
 
 ### Problem 1 C
-```{r tmax_tmin_snow_plot}
+```{r tmax_tmin_snow_plot, fig.width = 8, fig.asp = 1.4}
 tmax_tmin_p = 
   noaa_df |> 
   drop_na(tmax, tmin) |> 
@@ -102,7 +102,7 @@ tmax_tmin_p / snow_p
 ```
 Max and min temperature are strongly positively related, and most observations are between about -15 and 30 C. There are some unlikely values, such as max temperatures near 60 C and min temperatures below -50 C, which are probably data errors.
 
-The distribution of snowfall is very similar across years. The median is 25 mm in every year, and most values fall between about 13 and 51 mm. A few years (such as 1998, 2006, and 2010) have slightly lower snowfall.
+Among days with snowfall greater than 0 and less than 100 mm, the distributions are similar across years. These boxplots show daily snowfall within this range, rather than total annual snowfall.
 
 
 ## Problem 2
@@ -188,3 +188,81 @@ nhanes_df |>
     y = "Mean activity (MIMS)")
 ```
 All groups show a similar daily pattern: activity is lowest around 4 to 5 am, rises quickly in the morning, stays high during the day, and drops in the evening. In the "Less than high school" group, activity peaks around noon and then slowly declines, and men and women are similar during the day. In the other two groups, activity stays high for longer during the day, and women are more active than men, especially in the "More than high school" group.
+
+
+## Problem 3
+
+### Import and tidy data
+```{r citi_tidy}
+citi_df = 
+  bind_rows(
+    read_csv("data/citibike/Jan 2020 Citi.csv.zip") |> mutate(year = 2020, month = "January"),
+    read_csv("data/citibike/July 2020 Citi.csv.zip") |> mutate(year = 2020, month = "July"),
+    read_csv("data/citibike/Jan 2024 Citi.csv.zip") |> mutate(year = 2024, month = "January"),
+    read_csv("data/citibike/July 2024 Citi.csv.zip") |> mutate(year = 2024, month = "July")) |> 
+  janitor::clean_names() |> 
+  mutate(
+    month = factor(month, levels = c("January", "July")),
+    weekdays = factor(
+      weekdays, 
+      levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")))
+```
+
+Combine the four files and add `year` and `month`. The final dataset has `r nrow(citi_df)` rides and `r ncol(citi_df)` variables. Each row is one ride. Key variables are bike type (`rideable_type`), day of the week (`weekdays`), ride duration in minutes (`duration`), start and end station, and rider type (`member_casual`).
+
+### Rides by year and month
+```{r rides_table}
+citi_df |> 
+  count(year, month, member_casual) |> 
+  pivot_wider(names_from = member_casual, values_from = n) |> 
+  knitr::kable()
+```
+
+Members take most rides in every month. Rides are much higher in July than in January, and much higher in 2024 than in 2020; July 2024 has the most rides (36262 member and 10894 casual). Casual riders are a larger share of rides in July than in January, which suggests casual riders use Citi Bike more in summer.
+
+### Top starting stations in July 2024
+```{r top_stations_table}
+citi_df |> 
+  filter(year == 2024, month == "July") |> 
+  count(start_station_name, sort = TRUE) |> 
+  head(5) |> 
+  knitr::kable(col.names = c("Starting station", "Number of rides"))
+```
+
+The most popular starting station in July 2024 is Pier 61 at Chelsea Piers (163 rides), followed by University Pl & E 14 St (155 rides), W 21 St & 6 Ave (152 rides), West St & Chambers St (150 rides), and W 31 St & 7 Ave (146 rides).
+
+### Median ride duration
+```{r median_duration_plot}
+citi_df |> 
+  group_by(year, month, weekdays) |> 
+  summarize(median_duration = median(duration)) |> 
+  ggplot(aes(x = weekdays, y = median_duration, color = month, group = month)) + 
+  geom_point() + 
+  geom_line() + 
+  facet_wrap(~ year) + 
+  labs(
+    title = "Median ride duration by day of week, month, and year",
+    x = "Day of week",
+    y = "Median ride duration (min)",
+    color = "Month") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Rides are longer in July than in January in both years. Median duration is shorter in 2024 than in 2020, especially in July (about 9 to 11 minutes in 2024， 13 to 17 minutes in 2020). Weekend rides are usually longer than weekday rides. 
+
+### Ride duration in 2024
+```{r duration_2024_plot}
+citi_df |> 
+  filter(year == 2024) |> 
+  ggplot(aes(x = rideable_type, y = duration, fill = member_casual)) + 
+  geom_boxplot(outlier.alpha = 0.2) + 
+  facet_wrap(~ month) + 
+  scale_y_log10() + 
+  labs(
+    title = "Ride duration in 2024 by month, rider type, and bike type",
+    x = "Bike type",
+    y = "Ride duration (min, log scale)",
+    fill = "Rider type")
+```
+
+Casual riders take longer rides than members for both bike types and both months. In July the median is about 13 to 16 minutes for casual riders and 8 to 9 minutes for members. Rides are longer in July than in January. For casual riders, electric bike rides are shorter than classic bike rides. For members, the two bike types are similar in January, and electric bike rides are slightly longer in July.
